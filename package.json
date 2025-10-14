@@ -1,0 +1,26 @@
+{
+  "name": "nsfwjs-image-api",
+  "version": "1.0.0",
+  "description": "NSFW image analysis API using nsfwjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "download-model": "node download-model.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "nsfwjs": "^2.4.2",
+    "@tensorflow/tfjs-node": "^4.15.0",
+    "axios": "^1.6.2",
+    "sharp": "^0.33.0",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["nsfw", "image-analysis", "api", "nodejs"],
+  "author": "",
+  "license": "MIT"
+}
