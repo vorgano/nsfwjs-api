@@ -25,11 +25,21 @@ class ImageProcessor {
       // Get image metadata
       const metadata = await sharp(imageBuffer).metadata();
       
-      // Check if resizing is needed
-      if (metadata.width > this.maxDimension || metadata.height > this.maxDimension) {
+      const needsResize = metadata.width > this.maxDimension || metadata.height > this.maxDimension;
+      const isSupportedFormat = ['jpeg', 'jpg', 'png'].includes((metadata.format || '').toLowerCase());
+
+      if (needsResize) {
         return await this.resizeImage(imageBuffer, metadata);
       }
-      
+
+      // Transcode unsupported formats (e.g., webp, avif) to JPEG
+      if (!isSupportedFormat) {
+        return await sharp(imageBuffer)
+          .rotate() // respect EXIF orientation
+          .jpeg({ quality: 90 })
+          .toBuffer();
+      }
+
       return imageBuffer;
     } catch (error) {
       throw new Error(`Image processing failed: ${error.message}`);
@@ -48,13 +58,27 @@ class ImageProcessor {
         url: url,
         responseType: 'arraybuffer',
         timeout: this.timeout,
+        maxRedirects: 10,
+        // Some image CDNs (e.g., Unsplash) are picky about headers
         headers: {
-          'User-Agent': 'NSFWJS-API/1.0.0'
-        }
+          'User-Agent': 'NSFWJS-API/1.0.0 (+https://localhost) Node.js',
+          'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+          'Accept-Encoding': 'identity',
+          // A permissive referer helps with some hosts that gate hotlinking
+          'Referer': 'https://localhost/'
+        },
+        // Allow axios to treat 2xx only as success; redirects are followed above
+        validateStatus: (status) => status >= 200 && status < 300
       });
 
       if (!response.data || response.data.length === 0) {
         throw new Error('Empty response from image URL');
+      }
+
+      // Basic content-type validation when provided
+      const contentType = response.headers && response.headers['content-type'];
+      if (contentType && !contentType.startsWith('image/')) {
+        throw new Error(`Unexpected content-type: ${contentType}`);
       }
 
       return Buffer.from(response.data);
@@ -92,6 +116,7 @@ class ImageProcessor {
       }
 
       const resizedBuffer = await sharp(imageBuffer)
+        .rotate()
         .resize(newWidth, newHeight, {
           fit: 'inside',
           withoutEnlargement: true

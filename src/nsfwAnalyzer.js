@@ -14,25 +14,27 @@ class NSFWAnalyzer {
    */
   async loadModel() {
     try {
-      console.log('Loading NSFW model...');
+      console.log('Loading NSFW model using NSFWJS constructor...');
       this.loadStartTime = Date.now();
       
-      // Try to load the model with a timeout
-      const loadPromise = nsfwjs.load();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Model loading timeout')), 30000)
-      );
+      // Load from local mobilenet_v2 model using NSFWJS constructor
+      const path = require('path');
+      // Use absolute path to model.json and tf.io.fileSystem handler for Node
+      const localModelJson = path.resolve('./models/mobilenet_v2/model.json');
+      console.log(`📁 Loading mobilenet_v2 model from: ${localModelJson}`);
       
-      this.model = await Promise.race([loadPromise, timeoutPromise]);
+      // Instantiate with explicit options and then load weights
+      const ioHandler = tf.io.fileSystem(localModelJson);
+      this.model = new nsfwjs.NSFWJS(ioHandler, { size: 224, type: 'layers' });
+      await this.model.load();
       
       const loadTime = Date.now() - this.loadStartTime;
       this.isLoaded = true;
       
-      console.log(`NSFW model loaded successfully in ${loadTime}ms`);
+      console.log(`✅ NSFW model (mobilenet_v2) loaded successfully in ${loadTime}ms`);
     } catch (error) {
-      console.error('Failed to load NSFW model:', error.message);
-      console.log('Server will start but analysis will not be available');
-      console.log('To fix: Check internet connection or use a local model');
+      console.error('❌ Failed to load NSFW model:', error.message);
+      console.log('🔧 Error details:', error);
       this.isLoaded = false;
       this.model = null;
     }
@@ -69,9 +71,7 @@ class NSFWAnalyzer {
    */
   async analyzeImage(imageBuffer) {
     if (!this.isLoaded || !this.model) {
-      // Return demo/mock results when model is not available
-      console.log('Model not loaded, returning demo results');
-      return this.getDemoResults();
+      throw new Error('Model not loaded. The nsfwjs model failed to download from the CDN. Please check your internet connection and try again.');
     }
 
     try {
@@ -95,37 +95,6 @@ class NSFWAnalyzer {
     } catch (error) {
       throw new Error(`Image analysis failed: ${error.message}`);
     }
-  }
-
-  /**
-   * Get demo/mock results when model is not available
-   * @returns {Object} Demo classification results
-   */
-  getDemoResults() {
-    // Generate realistic-looking demo results
-    const categories = ['Porn', 'Sexy', 'Hentai', 'Neutral', 'Drawing'];
-    const results = {};
-    
-    // Generate random but realistic percentages that sum to ~1.0
-    let total = 0;
-    categories.forEach(category => {
-      const value = Math.random() * 0.3; // Max 30% per category
-      results[category] = Math.round(value * 10000) / 10000;
-      total += value;
-    });
-    
-    // Normalize to ensure they sum to 1.0
-    Object.keys(results).forEach(key => {
-      results[key] = Math.round((results[key] / total) * 10000) / 10000;
-    });
-    
-    return {
-      success: true,
-      predictions: results,
-      timestamp: new Date().toISOString(),
-      demo: true,
-      note: 'Demo results - model not loaded due to network connectivity issues'
-    };
   }
 
   /**
@@ -194,29 +163,45 @@ class NSFWAnalyzer {
    * @returns {Object} Safety assessment
    */
   assessSafety(predictions, threshold = 0.5) {
-    const nsfwCategories = ['Porn', 'Sexy', 'Hentai'];
-    const safeCategories = ['Neutral', 'Drawing'];
+    // Find the most likely classification
+    let maxProbability = 0;
+    let mostLikelyCategory = null;
     
-    let nsfwScore = 0;
-    let safeScore = 0;
-    
-    // Calculate NSFW and safe scores
-    for (const [category, score] of Object.entries(predictions)) {
-      if (nsfwCategories.includes(category)) {
-        nsfwScore += score;
-      } else if (safeCategories.includes(category)) {
-        safeScore += score;
+    for (const [category, probability] of Object.entries(predictions)) {
+      if (probability > maxProbability) {
+        maxProbability = probability;
+        mostLikelyCategory = category;
       }
     }
     
-    const isSafe = nsfwScore < threshold;
+    // Define what we consider "safe" vs "nsfw"
+    const safeCategories = ['Neutral', 'Drawing'];
+    const nsfwCategories = ['Porn', 'Sexy', 'Hentai'];
+    
+    const isSafe = safeCategories.includes(mostLikelyCategory);
+    const isNsfw = nsfwCategories.includes(mostLikelyCategory);
+    
+    // Only make assessment if confidence is above threshold
+    const confidentEnough = maxProbability >= threshold;
+    
+    let assessment;
+    if (!confidentEnough) {
+      assessment = 'uncertain';
+    } else if (isSafe) {
+      assessment = 'safe';
+    } else if (isNsfw) {
+      assessment = 'nsfw';
+    } else {
+      assessment = 'unknown';
+    }
     
     return {
-      isSafe,
-      nsfwScore,
-      safeScore,
+      isSafe: confidentEnough && isSafe,
+      mostLikelyCategory,
+      confidence: maxProbability,
       threshold,
-      assessment: isSafe ? 'safe' : 'nsfw'
+      assessment,
+      allPredictions: predictions
     };
   }
 }
