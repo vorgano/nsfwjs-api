@@ -76,10 +76,17 @@ Analyze an image for NSFW content.
       },
       "safetyAssessment": {
         "isSafe": true,
-        "nsfwScore": 0.1702,
-        "safeScore": 0.8298,
+        "mostLikelyCategory": "Neutral",
+        "confidence": 0.8234,
         "threshold": 0.5,
-        "assessment": "safe"
+        "assessment": "safe",
+        "allPredictions": {
+          "Porn": 0.0234,
+          "Sexy": 0.1456,
+          "Hentai": 0.0012,
+          "Neutral": 0.8234,
+          "Drawing": 0.0064
+        }
       }
     },
     "timestamp": "2024-01-15T10:30:00.000Z"
@@ -88,6 +95,14 @@ Analyze an image for NSFW content.
   "requestId": "abc123def"
 }
 ```
+
+Fields:
+- `success` (boolean): Overall request success flag.
+- `data.predictions` (object): Class probabilities in [0,1] for `Porn`, `Sexy`, `Hentai`, `Neutral`, `Drawing`.
+- `data.insights.mostLikelyClassification` (object): Top class and its `confidence`.
+- `data.insights.safetyAssessment` (object): Derived decision with `isSafe`, `mostLikelyCategory`, `confidence`, `threshold`, `assessment`, and echo of `allPredictions`.
+- `timestamp` (ISO string): Completion time.
+- `requestId` (string): Server-generated request identifier.
 
 ### GET /health
 
