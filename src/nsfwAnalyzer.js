@@ -17,21 +17,21 @@ class NSFWAnalyzer {
       console.log('Loading NSFW model using NSFWJS constructor...');
       this.loadStartTime = Date.now();
       
-      // Load from local mobilenet_v2 model using NSFWJS constructor
+      // Load from local inception_v3 model using NSFWJS constructor
       const path = require('path');
       // Use absolute path to model.json and tf.io.fileSystem handler for Node
-      const localModelJson = path.resolve('./models/mobilenet_v2/model.json');
-      console.log(`📁 Loading mobilenet_v2 model from: ${localModelJson}`);
+      const localModelJson = path.resolve('./models/inception_v3/model.json');
+      console.log(`📁 Loading inception_v3 model from: ${localModelJson}`);
       
       // Instantiate with explicit options and then load weights
       const ioHandler = tf.io.fileSystem(localModelJson);
-      this.model = new nsfwjs.NSFWJS(ioHandler, { size: 224, type: 'layers' });
+      this.model = new nsfwjs.NSFWJS(ioHandler, { size: 299, type: 'layers' });
       await this.model.load();
       
       const loadTime = Date.now() - this.loadStartTime;
       this.isLoaded = true;
       
-      console.log(`✅ NSFW model (mobilenet_v2) loaded successfully in ${loadTime}ms`);
+      console.log(`✅ NSFW model (inception_v3) loaded successfully in ${loadTime}ms`);
     } catch (error) {
       console.error('❌ Failed to load NSFW model:', error.message);
       console.log('🔧 Error details:', error);
